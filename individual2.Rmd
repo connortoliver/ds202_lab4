@@ -1,16 +1,28 @@
 ---
-title: "Lab #4"
+title: "individual1"
 author: "Connor Toliver"
-date: "3/11/2020"
+date: "3/21/2020"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r}
+library(readxl)
+defense <- read_excel('cyclonesFootball2019.xlsx', sheet='Defensive')
+offense <- read_excel('cyclonesFootball2019.xlsx', sheet='Offensive')
+biography <- read_excel('cyclonesFootball2019.xlsx', sheet='Biography')
 ```
 
+```{r}
+library(dplyr)
+library(tidyverse)
 
-Part 1
+defense$Name <- factor(defense$Name)
+defense$Opponent_Opponent <- factor(defense$Opponent_Opponent)
+
+offense$Name <- factor(offense$Name)
+offense$Opponent_Opponent <- factor(offense$Opponent_Opponent)
+biography$Name <- factor(biography$Name)
+```
 
 ```{r}
 library(readxl)
@@ -60,7 +72,6 @@ str(offClean)
 str(bioClean)
 ```
 
-Part 2
 
 ```{r}
 defClean <- defClean %>% 
@@ -88,3 +99,4 @@ bioClean %>%
   select(State) %>% 
   summarize(n =n())
 ```
+
