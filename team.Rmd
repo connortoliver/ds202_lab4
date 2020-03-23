@@ -1,7 +1,7 @@
 ---
 title: "Lab #4"
-author: "Connor Toliver"
-date: "3/11/2020"
+author: "Connor Toliver, @connortolivere; Halye Humphries, @haley22"
+date: "3/22/2020"
 output: html_document
 ---
 
@@ -10,7 +10,9 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
-Part 1
+## Part 1: Cleaning
+
+First, we'll load in our data and do some cleaning. We are using the Iowa State Cyclone 2019 football data.
 
 ```{r}
 library(readxl)
@@ -19,6 +21,8 @@ defense <- read_excel('cyclonesFootball2019.xlsx', sheet='Defensive')
 offense <- read_excel('cyclonesFootball2019.xlsx', sheet='Offensive')
 biography <- read_excel('cyclonesFootball2019.xlsx', sheet='Biography')
 ```
+
+We need to make `Name` and `Opponnent_Opponent` faactors. We also need to make the numeric columns numeric in R and change the Height column into inches.
 
 ```{r}
 defClean <- defense %>% 
@@ -48,6 +52,8 @@ bioClean <- bioClean %>%
 str(bioClean)
 ```
 
+Let's look at the structure of each now.
+
 ```{r}
 str(defClean)
 ```
@@ -60,60 +66,179 @@ str(offClean)
 str(bioClean)
 ```
 
-Part 2
+## Part 2: Tidying
+
+#### 1\. Now we can start tidying our data. First, we'll reformat the `defClean` data frame into a tidy format using `pivot_longer`. We'll add a new key column called `Statistic`.
 
 ```{r}
-defClean <- defClean %>% 
+defClean2 <- defClean %>% 
   pivot_longer(Tackles_Solo:Pass_PB, names_to = 'Statistic')
-
-ggplot(defClean, aes(x = value)) + geom_histogram() + facet_wrap(~Statistic)
 ```
 
+#### 2\. Now, we'll create a histogram for each defensive statistic using `facet_wrap` to seee which defensive skills are rare.
 
 ```{r}
-defClean %>% 
+ggplot(defClean2, mapping = aes(x = value, binwidth=10)) +
+  geom_histogram() +
+  facet_wrap(~Statistic) +
+  ggtitle('Frequency of Points by Defensive Move') +
+  xlab('Number of Points') +
+  ylab('Frequency of Points')
+```
+
+The rare skills are the skills with the most in the `0` bin. Relative to the other skills, `Tackles_Sack`, `Turnover_FF`, `Turnover_FR`, and `Turnover_INT` are the rarest
+
+#### 3\. Did ISU have better defense against West Virginia or Kansas State?
+
+```{r}
+defClean2 %>% 
   filter(Opponent_Opponent == 'West Virginia' | Opponent_Opponent == 'Kansas State') %>% 
   filter(Statistic == 'Tackles_Solo') %>% 
   pivot_wider(names_from = 'Opponent_Opponent', values_from = 'value') %>% 
   select(Name, 'West Virginia', 'Kansas State') %>% 
-  ggplot(aes(`West Virginia`, `Kansas State`)) + geom_jitter()
+  ggplot(aes(`West Virginia`, `Kansas State`)) + 
+  geom_jitter() +
+  ggtitle('Number of Solo Tackles ', subtitle='Against Kansas State and West Virginia by Each Player')
 ```
+
+It appears that the defense was better against Kansas State. There are more solo tackles overall by each player than there are for West Virginia.
+
+#### 4\. Now we'll separate the `Hometown` column into `City` and `State` to see how many players are from each state.
 
 ```{r}
 bioClean <- bioClean %>% 
   separate(Hometown, sep=', ', into=c('City', 'State'))
 
-bioClean %>% 
+bioClean2 <- bioClean %>% 
   group_by(State) %>% 
   select(State) %>% 
-  summarize(n =n())
+  summarize(n=n())
+
+bioClean2
 ```
 
-Part 3
+It comes as no surprise that the most common home state is Iowa. Interestingly, Florida is the next highest. We also have a player from Australia according to the data.
+
+
+## Part 3
+
+#### 1\. Where do the offensive players come from? We can figure this out by joining the offensive data with the biography data.
+
 ```{r}
-combined <- offclean %>% 
-  left_join(bioclean, b='Name')
+offensiveBio <- offClean %>% 
+  select(Name) %>% 
+  left_join(bioClean) %>% 
+  select(Name, City, State) %>% 
+  drop_na() %>% 
+  unique()
+
+offensiveBio
+```
+
+Here we can see each offenesive player's homee city and state.
+
+#### 2\. Is there a relationship between the weight of a player and the receiving yards?
+
+```{r}
+combined <- offClean %>% 
+  left_join(bioClean, b='Name') %>% 
+  select(Name, Weight, Receiving_YDS)
 ```
 
 ```{r}
-combined$Name = as.factor(combined$Name)
+combined$Name <- as.factor(combined$Name)
 combined$Receiving_YDS[is.na(combined$Receiving_YDS)] = 0
 
-q2 = combined %>% 
-  group_by(combined$Name) %>% 
-  summarise(
+q2 <- combined %>% 
+  group_by(Name) %>% 
+  summarize(
     totalRecYards = sum(Receiving_YDS),
-    Weight = mean(Weight)) %>% 
+    Weight = mean(as.numeric(Weight))) %>% 
   drop_na()
 
 q2 %>% 
-  ggplot(aes(x = Weight, y = totalRecYards)) + geom_point() +
-  xlim(c(0,300)) + xlab("Weight") +ylab("Total Receiving Yards") +
+  ggplot(aes(x = Weight, y = totalRecYards)) + 
+  geom_point() +
+  xlim(c(0,300)) + 
+  xlab("Weight") +
+  ylab("Total Receiving Yards") +
   ggtitle("ISU Football Weights vs Receiving Yards")
   
 ```
+
 In my opinion, there does not necessarily appear to be much correlation. Although you can see some grouping on the plot, there are not many data points to begin with and quite a few outliers. For example, there are 6 points ranging from 0 to a little over 100 yds at the 200 lb weight, however there is one point around 200 lbs with over 700 yds. However I would say that because of the grouping, one could argue that there is correlation and if there were more points grouped together per outlier, I would agree with them.
 
 
+#### 3\. How does the performance of quarterback Brock Purdy relate to the performance of the ISU team?
 
+We can figure this out by creating aggregating the overall defensive and overall offensive points into two variables. Then, we'll join them by name and plot a scatter plot with the two variables.
+
+```{r}
+bioClean %>% filter(Position == 'Quarterback')
+offClean <- offClean %>% mutate_at(c(3:12), ~replace(., is.na(.), 0))
+defClean <- defClean %>% mutate_at(c(3:11), ~replace(., is.na(.), 0))
+
+offCleanPerformance <- offClean %>% 
+  mutate(`Offense Performance` = Rushing_ATT + Rushing_YDS + Rushing_TD + Receiving_REC + Receiving_YDS + Receiving_TD +
+                      `Passing_CMP-ATT` + Passing_YDS + Passing_TD + Passing_INT) %>% 
+  select(Name, `Offense Performance`) %>% 
+  group_by(Name) %>% 
+  summarize(`Offense Performance` = sum(`Offense Performance`))
+
+defCleanPerformance <- defClean %>% 
+  mutate(`Defense Performance` = Tackles_Solo + Tackles_ASST + Tackles_TFL + Tackles_Sack + Turnover_FF +
+           Turnover_FR + Turnover_INT + Pass_QBH + Pass_PB) %>% 
+  select(Name, `Defense Performance`) %>% 
+  group_by(Name) %>% 
+  summarize(`Defense Performance` = sum(`Defense Performance`))
+
+bothClean <- full_join(defCleanPerformance, offCleanPerformance)
+
+bothClean <- bothClean %>% mutate_at(c(2:3), ~replace(., is.na(.), 0))
+  
+head(bothClean)
+
+ggplot() +
+  geom_jitter(data = filter(bothClean, Name == 'Purdy, Brock'), aes(x = `Offense Performance`, y = `Defense Performance`, color = Name)) +
+  geom_jitter(data = filter(bothClean, Name != 'Purdy, Brock'), aes(x = `Offense Performance`, y = `Defense Performance`)) +
+  ggtitle('Comparative Offensive and Defensive Performance',
+          subtitle = 'between Brock Purdy and the Iowa State Football Team')
+```
+
+According to this, Brock Purdy clearly has the highest offense performance of any player at over 4000, however, he has no defense score, since he is sidelined during when the team is playing defense.
+
+#### 4\. What's the relationship between class and the number of solo tackles? 
+
+We can figure this out by joining the `bioClean` data set with the `defClean` data set. We'll select only the data we need and call this data frame `classTackles`.
+```{r}
+classTackles <- defClean %>% 
+  select(Name, Tackles_Solo) %>% 
+  group_by(Name) %>% 
+  summarize(Tackles_Solo = sum(Tackles_Solo)) %>% 
+  left_join(bioClean) %>% 
+  select(Name, Tackles_Solo, Class)
+
+head(classTackles)
+```
+
+Now, let's drop any null data just in case.
+
+```{r}
+classTackles <- classTackles %>% drop_na()
+
+head(classTackles)
+```
+
+Finally, we can factor the `Class` categories in order and plot the number of solo tackles by `Class` in a bar plot. Perhaps we can expect seniors and redshirt seniors to have the highest number of tackles, because they have the most experience?
+
+```{r}
+classTackles$Class <- factor(classTackles$Class, c('Sophomore', 'Redshirt Sophomore', 'Junior', 'Redshirt Junior', 'Senior', 'Redshirt Senior'))
+
+ggplot(classTackles, aes(x = Class, weight = Tackles_Solo)) +
+  geom_bar() +
+  ylab('Number of Tackles') +
+  ggtitle('Total Number of Tackles by Class')
+```
+
+According to this graph, juniors and reedshirt seniors have the most tackles by far. Juniors and seniors having the most tackles isn't too surprising, considereing sophomores and redshirt sophomores likely get less playtime than upper classmen.
 
