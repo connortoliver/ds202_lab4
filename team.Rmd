@@ -88,3 +88,32 @@ bioClean %>%
   select(State) %>% 
   summarize(n =n())
 ```
+
+Part 3
+```{r}
+combined <- offclean %>% 
+  left_join(bioclean, b='Name')
+```
+
+```{r}
+combined$Name = as.factor(combined$Name)
+combined$Receiving_YDS[is.na(combined$Receiving_YDS)] = 0
+
+q2 = combined %>% 
+  group_by(combined$Name) %>% 
+  summarise(
+    totalRecYards = sum(Receiving_YDS),
+    Weight = mean(Weight)) %>% 
+  drop_na()
+
+q2 %>% 
+  ggplot(aes(x = Weight, y = totalRecYards)) + geom_point() +
+  xlim(c(0,300)) + xlab("Weight") +ylab("Total Receiving Yards") +
+  ggtitle("ISU Football Weights vs Receiving Yards")
+  
+```
+In my opinion, there does not necessarily appear to be much correlation. Although you can see some grouping on the plot, there are not many data points to begin with and quite a few outliers. For example, there are 6 points ranging from 0 to a little over 100 yds at the 200 lb weight, however there is one point around 200 lbs with over 700 yds. However I would say that because of the grouping, one could argue that there is correlation and if there were more points grouped together per outlier, I would agree with them.
+
+
+
+
